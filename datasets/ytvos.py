@@ -255,7 +255,7 @@ def build(image_set, args):
         mode = 'instances'
         PATHS = {
             "train": (root / "train/JPEGImages", root / "annotations" / f'{mode}_train_sub.json'),
-            "val": (root / "val/JPEGImages", root / "annotations" / f'{mode}_val_sub.json'),
+            "val": (root / "custom_val/JPEGImages", root / "custom_val/instances.json"),
         }
         img_folder, ann_file = PATHS[image_set]
         print('use Youtube-VIS dataset')
