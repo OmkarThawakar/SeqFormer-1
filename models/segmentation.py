@@ -262,6 +262,7 @@ class SeqFormer(nn.Module):
             # mask: [nf*N, Hi, Wi],
             # pos: [nf*N, C, H_p, W_p]
             src, mask = feat.decompose() 
+            BS, c, H,W = src.shape
             src_proj_l = self.detr.input_proj[l](src)    # src_proj_l: [nf*N, C, Hi, Wi]
             
             # src_proj_l -> [nf, N, C, Hi, Wi]
@@ -354,7 +355,12 @@ class SeqFormer(nn.Module):
         outputs['pred_boxes'] = outputs_coord[-1]
         outputs['pred_masks'] = outputs_mask[-1][0]
 
-        return outputs
+        ## for attention map visualizaton (max multiscale feature map only)
+
+        max_memory = memory[:,:,:spatial_shapes[0][0]*spatial_shapes[0][1], :]
+        max_memory = max_memory[0].view(BS,spatial_shapes[0][0], spatial_shapes[0][1],256)
+
+        return outputs, max_memory
 
 
     def forward_mask_head_train(self, outputs, feats, spatial_shapes, reference_points, mask_head_params, num_insts):

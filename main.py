@@ -317,6 +317,23 @@ def main(args):
                             torch.save(coco_evaluator.coco_eval["segm"].eval,
                                     output_dir / "eval" / name)
 
+        ## Added for the best checkpoint calculation
+        if test_stats['coco_eval_masks'][0] > best_precision :
+            best_precision = test_stats['coco_eval_masks'][0]
+            best_epoch = epoch
+        
+            utils.save_on_master({
+                    'model': model.state_dict(),
+                    'optimizer': optimizer.state_dict(),
+                    'lr_scheduler': lr_scheduler.state_dict(),
+                    'epoch': epoch,
+                    'args': args,
+                }, output_dir / f'checkpoint_best.pth')
+
+            with open(output_dir / f'training_coco_accuracy.txt' , 'a') as info_file:
+                info_file.write("Epoch : {} | COCO Test Acc : {} | Best Epoch : {} | Best COCO Test Acc : {} \n".format(epoch, test_stats['coco_eval_masks'][0], best_epoch, best_precision))
+                info_file.close()
+
 
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))

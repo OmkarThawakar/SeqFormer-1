@@ -24,8 +24,7 @@ from util.misc import (NestedTensor, nested_tensor_from_tensor_list,
 
 from .backbone import build_backbone
 from .matcher import build_matcher
-from .segmentation import (SeqFormer, PostProcessSegm,
-                           dice_loss, sigmoid_focal_loss)
+from .segmentation import (SeqFormer, PostProcessSegm, dice_loss, sigmoid_focal_loss)
                            
 from .deformable_transformer import build_deforamble_transformer
 import copy

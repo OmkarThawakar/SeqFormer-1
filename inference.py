@@ -42,7 +42,7 @@ def get_args_parser():
     parser.add_argument('--with_box_refine', default=True, action='store_true')
 
     # Model parameters
-    parser.add_argument('--model_path', type=str, default=None,
+    parser.add_argument('--model_path', type=str, default='drive_models/seqformer_r50_joint.pth',
                         help="Path to the model weights.")
     # * Backbone
     
@@ -105,8 +105,8 @@ def get_args_parser():
 
 
     # dataset parameters
-    parser.add_argument('--img_path', default='../ytvis/val/JPEGImages/')
-    parser.add_argument('--ann_path', default='../ytvis/annotations/instances_val_sub.json')
+    parser.add_argument('--img_path', default='/home/omkarthawakar/datasets/ytvis-2019/val/JPEGImages/')
+    parser.add_argument('--ann_path', default='/home/omkarthawakar/datasets/ytvis-2019/annotations/instances_val_sub.json')
     parser.add_argument('--save_path', default='results.json')
     parser.add_argument('--dataset_file', default='YoutubeVIS')
     parser.add_argument('--coco_path', type=str)
@@ -146,6 +146,29 @@ transform = T.Compose([
     T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 ])
 
+def save_attention_map(memory, file_names, H,W, video_num):
+    foldername = file_names[0].split('/')[0]
+    try:
+        os.mkdir('attention/{}'.format(video_num))
+    except:
+        pass
+    #memory = memory.detach().cpu().numpy()
+
+    for i in range(len(file_names)):
+
+        img = Image.open(args.img_path + file_names[i])
+        img = img.resize((W,H))
+        img.save('attention/{}/{}_img.png'.format(video_num,i))
+
+        mem = memory[i,:,:,:]
+        mem = torch.max(mem, axis=2).values.detach().cpu().numpy()
+
+        fig, ax = plt.subplots( nrows=1, ncols=1 )
+        ax.imshow(mem)
+        fig.savefig('attention/{}/{}_attn.png'.format(video_num,i))
+        plt.close(fig)
+
+    print('Attention Map Saved!!')
 
 
 
@@ -161,9 +184,11 @@ def main(args):
 
 
     with torch.no_grad():
+        args.masks=True
         model, criterion, postprocessors = build_model(args)
         model.to(device)
         state_dict = torch.load(args.model_path)['model']
+        
         model.load_state_dict(state_dict)
         model.eval()
         folder = args.img_path
@@ -190,10 +215,16 @@ def main(args):
                 img_set.append(transform(im).unsqueeze(0).cuda())
 
             img = torch.cat(img_set,0)
+
+            n, c, H, W = img.shape
           
             model.detr.num_frames=vid_len  
 
-            outputs = model.inference(img,img.shape[-1],img.shape[-2])
+            outputs, memory = model.inference(img,img.shape[-1],img.shape[-2])
+
+            # save attention map
+            save_attention_map(memory, file_names, H, W, i)
+
             logits = outputs['pred_logits'][0]
             output_mask = outputs['pred_masks'][0]
             output_boxes = outputs['pred_boxes'][0]
