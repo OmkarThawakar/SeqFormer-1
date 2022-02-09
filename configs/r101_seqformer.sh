@@ -9,8 +9,8 @@ python3 -u main.py \
     --lr_drop 4 10\
     --batch_size 2 \
     --num_workers 2 \
-    --coco_path ../coco \
-    --ytvis_path ../ytvis \
+    --coco_path /home/omkarthawakar/datasets/coco \
+    --ytvis_path /home/omkarthawakar/datasets/ytvis-2019 \
     --num_queries 300 \
     --num_frames 5 \
     --with_box_refine \

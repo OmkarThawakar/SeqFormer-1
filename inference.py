@@ -105,9 +105,9 @@ def get_args_parser():
 
 
     # dataset parameters
-    parser.add_argument('--img_path', default='/home/omkarthawakar/datasets/ytvis-2019/val/JPEGImages/')
-    parser.add_argument('--ann_path', default='/home/omkarthawakar/datasets/ytvis-2019/annotations/instances_val_sub.json')
-    parser.add_argument('--save_path', default='results.json')
+    parser.add_argument('--img_path', default='/home/omkarthawakar/datasets/ytvis-2019/custom_val/JPEGImages/')
+    parser.add_argument('--ann_path', default='/home/omkarthawakar/datasets/ytvis-2019/custom_val/instances.json')
+    parser.add_argument('--save_path', default='results_custom_val.json')
     parser.add_argument('--dataset_file', default='YoutubeVIS')
     parser.add_argument('--coco_path', type=str)
     parser.add_argument('--coco_panoptic_path', type=str)
@@ -146,7 +146,41 @@ transform = T.Compose([
     T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 ])
 
-def save_attention_map(memory, file_names, H,W, video_num):
+def save_attention_map(memory, feature, file_names, H,W, video_num):
+    foldername = file_names[0].split('/')[0]
+    try:
+        os.mkdir('attention/{}'.format(video_num))
+    except:
+        pass
+    #memory = memory.detach().cpu().numpy()
+
+    for i in range(len(file_names)):
+
+        img = Image.open(args.img_path + file_names[i])
+        img = img.resize((W,H))
+        img.save('attention/{}/{}_img.png'.format(video_num,i))
+
+        # save encoder attention (max)
+        mem = memory[i,:,:,:]
+        mem = torch.mean(mem, axis=2).cpu().numpy()
+
+        fig, ax = plt.subplots( nrows=1, ncols=1 )
+        ax.imshow(mem)
+        fig.savefig('attention/{}/{}_attn.png'.format(video_num,i))
+        plt.close(fig)
+
+        # save backbone feature (max), i.e multi-scale feature
+        ft = feature[i,:,:,:]
+        ft = torch.mean(ft, axis=2).cpu().numpy()
+
+        fig, ax = plt.subplots( nrows=1, ncols=1 )
+        ax.imshow(ft)
+        fig.savefig('attention/{}/{}_mft.png'.format(video_num,i))
+        plt.close(fig)
+
+    print('Attention Map Saved!!')
+
+def save_attention_map2(memory, file_names, H,W, video_num):
     foldername = file_names[0].split('/')[0]
     try:
         os.mkdir('attention/{}'.format(video_num))
@@ -163,10 +197,11 @@ def save_attention_map(memory, file_names, H,W, video_num):
         mem = memory[i,:,:,:]
         mem = torch.max(mem, axis=2).values.detach().cpu().numpy()
 
-        fig, ax = plt.subplots( nrows=1, ncols=1 )
-        ax.imshow(mem)
-        fig.savefig('attention/{}/{}_attn.png'.format(video_num,i))
-        plt.close(fig)
+        plt.imsave('attention/{}/{}_attn.png'.format(video_num,i), mem)
+        # fig, ax = plt.subplots( nrows=1, ncols=1 )
+        # ax.imshow(mem)
+        # fig.savefig('attention/{}/{}_attn.png'.format(video_num,i))
+        # plt.close(fig)
 
     print('Attention Map Saved!!')
 
@@ -198,8 +233,11 @@ def main(args):
         # postprocess = PostProcessSegm_ifc()
         result = [] 
         for i in range(vis_num):
-            print("Process video: ",i)
+            
+   
             id_ = videos[i]['id']
+            #if i == 2 :
+            print("Process video: ",i)
             vid_len = videos[i]['length']
             file_names = videos[i]['file_names']
             video_name_len = 10 
@@ -217,18 +255,18 @@ def main(args):
             img = torch.cat(img_set,0)
 
             n, c, H, W = img.shape
-          
+        
             model.detr.num_frames=vid_len  
 
-            outputs, memory = model.inference(img,img.shape[-1],img.shape[-2])
+            outputs, memory, max_feature = model.inference(img,img.shape[-1],img.shape[-2])
 
             # save attention map
-            save_attention_map(memory, file_names, H, W, i)
+            save_attention_map(memory, max_feature, file_names, H, W, id_)
 
             logits = outputs['pred_logits'][0]
             output_mask = outputs['pred_masks'][0]
             output_boxes = outputs['pred_boxes'][0]
-  
+
             
             H = output_mask.shape[-2]
             W = output_mask.shape[-1]
@@ -257,7 +295,7 @@ def main(args):
                 for class_id in hit_dict[inst_id]:
                     category_id = class_id
                     score =  scores[inst_id,class_id]
-             #       print('name:',CLASSES[category_id-1],', score',score)
+            #       print('name:',CLASSES[category_id-1],', score',score)
                     instance = {'video_id':id_, 'video_name': file_names[0][:video_name_len], 'score': float(score), 'category_id': int(category_id)}  
                     segmentation = []
                     for n in range(vid_len):

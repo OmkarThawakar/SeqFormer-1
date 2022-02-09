@@ -360,7 +360,9 @@ class SeqFormer(nn.Module):
         max_memory = memory[:,:,:spatial_shapes[0][0]*spatial_shapes[0][1], :]
         max_memory = max_memory[0].view(BS,spatial_shapes[0][0], spatial_shapes[0][1],256)
 
-        return outputs, max_memory
+        return outputs, max_memory, self.detr.input_proj[0](features[1].decompose()[0]).permute(0,2,3,1)
+
+        #return outputs, self.detr.input_proj[0](features[1].decompose()[0]).permute(0,2,3,1)
 
 
     def forward_mask_head_train(self, outputs, feats, spatial_shapes, reference_points, mask_head_params, num_insts):

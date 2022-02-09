@@ -20,8 +20,10 @@ import datasets
 import util.misc as utils
 import datasets.samplers as samplers
 from datasets import build_dataset, get_coco_api_from_dataset
-from engine import evaluate, train_one_epoch
+from engine import ytvis_evaluate, train_one_epoch
 from models import build_model
+
+import os
 
 
 
@@ -32,7 +34,7 @@ def get_args_parser():
     parser.add_argument('--lr_backbone', default=2e-5, type=float)
     parser.add_argument('--lr_linear_proj_names', default=['reference_points', 'sampling_offsets'], type=str, nargs='+')
     parser.add_argument('--lr_linear_proj_mult', default=0.1, type=float)
-    parser.add_argument('--batch_size', default=1, type=int)
+    parser.add_argument('--batch_size', default=2, type=int)
     parser.add_argument('--weight_decay', default=1e-4, type=float)
     parser.add_argument('--epochs', default=50, type=int)
     parser.add_argument('--lr_drop', default=40, type=int, nargs='+')
@@ -43,7 +45,7 @@ def get_args_parser():
     parser.add_argument('--sgd', action='store_true') 
 
     # Variants of Deformable DETR
-    parser.add_argument('--with_box_refine', default=False, action='store_true')
+    parser.add_argument('--with_box_refine', default=True, action='store_true')
 
     # Model parameters
     parser.add_argument('--pretrain_weights', type=str, default=None,
@@ -104,9 +106,11 @@ def get_args_parser():
     parser.add_argument('--focal_alpha', default=0.25, type=float)
 
     # dataset parameters
-    parser.add_argument('--dataset_file', default='coco')
-    parser.add_argument('--coco_path', default='../coco', type=str)
-    parser.add_argument('--ytvis_path', default='../ytvis', type=str)
+    parser.add_argument('--dataset_file', default='jointcoco')
+    parser.add_argument('--coco_path', default='/home/omkarthawakar/datasets/coco/', type=str)
+    parser.add_argument('--ytvis_path', default='/home/omkarthawakar/datasets/ytvis-2019/', type=str)
+    parser.add_argument('--ytvis_eval_img_path', default='/home/omkarthawakar/datasets/ytvis-2019/custom_val/JPEGImages/', type=str)
+    parser.add_argument('--ytvis_eval_ann_path', default='/home/omkarthawakar/datasets/ytvis-2019/custom_val/instances.json', type=str)
     parser.add_argument('--coco_panoptic_path', type=str)
     parser.add_argument('--remove_difficult', action='store_true')
 
@@ -115,7 +119,8 @@ def get_args_parser():
     parser.add_argument('--device', default='cuda',
                         help='device to use for training / testing')
     parser.add_argument('--seed', default=42, type=int)
-    parser.add_argument('--resume', default=None, help='resume from checkpoint')
+    #parser.add_argument('--resume', default=None, help='resume from checkpoint')
+    parser.add_argument('--resume', default='drive_models/seqformer_r50_joint.pth', help='resume from checkpoint')
     parser.add_argument('--start_epoch', default=0, type=int, metavar='N',
                         help='start epoch')
     parser.add_argument('--eval', action='store_true')
@@ -124,11 +129,11 @@ def get_args_parser():
 
     # evaluation options
     parser.add_argument('--dataset_type', default='original')
-    parser.add_argument('--eval_types', default='')
+    parser.add_argument('--eval_types', default='ytvis')
     parser.add_argument('--visualize', default='')
 
     # multi-frame
-    parser.add_argument('--num_frames', default=1, type=int, help='number of frames')
+    parser.add_argument('--num_frames', default=5, type=int, help='number of frames')
 
     parser.add_argument('--rel_coord', default=False, action='store_true')
 
@@ -138,6 +143,12 @@ def get_args_parser():
 
 
 def main(args):
+    args.masks=True
+    args.eval_types = 'ytvis'
+    args.lr_drop =  "4"
+    args.with_box_refine = True
+
+
     utils.init_distributed_mode(args)
 
     device = torch.device(args.device)
@@ -267,12 +278,21 @@ def main(args):
 
     output_dir = Path(args.output_dir)
 
+    # for best checkpoint calculation
+    best_precision = -1
+    best_epoch = -1
 
     print("Start training")
     start_time = time.time()
     for epoch in range(args.start_epoch, args.epochs):
         if args.distributed:
             sampler_train.set_epoch(epoch)
+
+        if "checkpoint_best.pth" in os.listdir(output_dir):
+            print("Loaded Best Checkpoint. | Current Epoch : {} | Best Epoch : {} ".format(epoch, best_epoch))
+            checkpoint = torch.load(output_dir / f'checkpoint_best.pth', map_location='cpu')
+            model_without_ddp.load_state_dict(checkpoint['model'], strict=True)
+ 
 
         train_stats = train_one_epoch(
             model, criterion, data_loader_train, optimizer, device, epoch, args.clip_max_norm)
@@ -283,6 +303,7 @@ def main(args):
             # extra checkpoint before LR drop and every 2 epochs
             if (epoch + 1) % 1 == 0 or (epoch + 1) % 1 == 0:
                 checkpoint_paths.append(output_dir / f'checkpoint{epoch:04}.pth')
+                test_model_path = output_dir / f'checkpoint{epoch:04}.pth'
             for checkpoint_path in checkpoint_paths:
                 utils.save_on_master({
                     'model': model_without_ddp.state_dict(),
@@ -294,9 +315,9 @@ def main(args):
 
      
 
-        if (epoch + 1) % 1 == 0 and args.eval_types == 'coco':
-            test_stats, coco_evaluator = evaluate(model, criterion, postprocessors,
-                                                                   data_loader_val, base_ds, device, args)
+        if (epoch + 1) % 1 == 0 and args.eval_types == 'ytvis':
+            test_stats, ytvis_evaluator = ytvis_evaluate(test_model_path,
+                                                                   device, args, epoch)
 
             log_stats = {**{f'train_{k}': v for k, v in train_stats.items()},
                         **{f'test_{k}': v for k, v in test_stats.items()},
@@ -307,19 +328,9 @@ def main(args):
                 with (output_dir / "log.txt").open("a") as f:
                     f.write(json.dumps(log_stats) + "\n")
 
-                if coco_evaluator is not None:
-                    (output_dir / 'eval').mkdir(exist_ok=True)
-                    if "segm" in coco_evaluator.coco_eval:
-                        filenames = ['coco_latest.pth']
-                        if epoch % 50 == 0:
-                            filenames.append(f'coco_{epoch:03}.pth')
-                        for name in filenames:
-                            torch.save(coco_evaluator.coco_eval["segm"].eval,
-                                    output_dir / "eval" / name)
-
         ## Added for the best checkpoint calculation
-        if test_stats['coco_eval_masks'][0] > best_precision :
-            best_precision = test_stats['coco_eval_masks'][0]
+        if test_stats[0] > best_precision :
+            best_precision = test_stats[0]
             best_epoch = epoch
         
             utils.save_on_master({

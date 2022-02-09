@@ -1,6 +1,8 @@
 *.ipynb
+*.json
 .vscode/
 drive_models/
+r50_joint/
 weights/
 datasets/coco_keepfor_ytvis19.json
 
