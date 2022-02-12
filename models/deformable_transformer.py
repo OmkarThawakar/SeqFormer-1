@@ -306,9 +306,9 @@ class DeformableTransformerDecoderLayer(nn.Module):
         
         
         if len(tgt_box.shape) == 3: 
-            tgt_box = tgt_box.unsqueeze(1) + self.dropout1_box(tgt2_box)
+            tgt_box = tgt_box.unsqueeze(1) + self.dropout1_box(tgt2_box) + query_pos.unsqueeze(1)
         else:
-            tgt_box = tgt_box + self.dropout1_box(tgt2_box)
+            tgt_box = tgt_box + self.dropout1_box(tgt2_box) + query_pos.unsqueeze(1)
         tgt_box = self.norm1_box(tgt_box)       
         # ffn box
         tgt_box = self.forward_ffn_box(tgt_box)
