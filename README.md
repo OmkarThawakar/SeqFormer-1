@@ -1,4 +1,10 @@
-# SeqFormer: a Frustratingly Simple Model for Video Instance Segmentation
+# SeqFormer: Sequential Transformer for Video Instance Segmentation
+
+
+News:
+SeqFormer is accepted as a paper for an **oral** presentation at **ECCV’2022**!
+
+A revised detectron2 version of SeqFormer, which supports multi-card training and inference, and supports inference by clip-matching manner, can be found here: [VNext](https://github.com/wjf5203/VNext)
 
 
 
@@ -10,11 +16,11 @@
 
 <p align="center"><img src="assets/sota.png" width="500"/></p>
 
-> [**SeqFormer: a Frustratingly Simple Model for Video Instance Segmentation**](https://arxiv.org/abs/2112.08275)
+> [**SeqFormer: Sequential Transformer for Video Instance Segmentation**](https://arxiv.org/abs/2112.08275)
 >
-> Junfeng Wu, Yi Jiang, Wenqing Zhang, Xiang Bai, Song Bai
+> Junfeng Wu, Yi Jiang, Song Bai, Wenqing Zhang, Xiang Bai
 >
-> [arXiv 2112.08275](https://arxiv.org/abs/2112.08275)
+
 
 
 
